@@ -5,10 +5,11 @@
 #include "ACS712.h"
 #include <Filters.h>
 
-#include <SPI.h>  // not used here, but needed to prevent a RTClib compile error
+#include <SPI.h> // not used here, but needed to prevent a RTClib compile error
 #include <RTClib.h>
 #include <SD.h>
-const int chipSelect = BUILTIN_SDCARD;
+
+const int chipSelect = 15;
 String file_name;
 String dir_name;
 String header;
@@ -53,6 +54,7 @@ int CURRENT[2] = {31, 32}; //C_MOTOR1 C_MOTOR2
 
 #define SD_MOSI 11
 #define SD_MISO 12
+#define SD_CS 15
 
 #define RTC_SCL 37
 #define RTC_SDA 38
@@ -69,7 +71,7 @@ volatile bool flag_head2 = false;
 volatile bool flag_swGreen = false;
 volatile bool flag_select = false;
 volatile bool flag_sd = false;
-
+volatile bool flag_save = false;
 
 volatile int count_defect = 0;
 volatile int count_ng1 = 0;
@@ -78,7 +80,78 @@ volatile int count_go = 0;
 long time_1;
 long time_2;
 
+int c;
+int total;
 
+void setupRTC()
+{
+  delay(500);
+  Serial.print("setup rtc");
+  Wire1.begin();
+  RTC.begin();
+
+  RTC.adjust(DateTime(__DATE__, __TIME__));
+  if (!RTC.isrunning())
+  {
+    Serial.println("RTC is NOT running!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    RTC.adjust(DateTime(__DATE__, __TIME__));
+  }
+  //DateTime now = RTC.now();
+  //RTC.setAlarm1Simple(21, 58);
+  //RTC.turnOnAlarm(1);
+  //if (RTC.checkAlarmEnabled(1)) {
+  //  Serial.println("Alarm Enabled");
+  //}
+}
+
+void readRTC()
+{
+  DateTime now = RTC.now();
+
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(' ');
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.print(now.second(), DEC);
+  Serial.println();
+
+  //if (RTC.checkIfAlarm(1)) {
+  //  Serial.println("Alarm Triggered");
+  //}
+}
+void getDataLog()
+{ 
+  DateTime now = RTC.now();
+  dir_name = "/" + String(now.month()) + String(now.year());
+  file_name = String(dir_name) + "/" + String(now.day()) + String(now.hour()) + String(now.minute()) + String(now.second()) + String(".CSV");
+  SD.mkdir(dir_name.c_str());
+  
+  File dataFile = SD.open(file_name.c_str(), FILE_WRITE);
+  
+  Serial.println(file_name);
+  if (dataFile)
+  {
+    //Serial.println("SAVE");
+    logString = String("count_go")+","+String("count_ng1")+","+String("count_ng2")+","+String("total")+","+"\r\n";
+    dataFile.print(logString);
+    logString="";
+    logString = String(count_go)+","+String(count_ng1)+","+String(count_ng2)+","+String(total)+","+"\r\n";
+    dataFile.print(logString);
+    dataFile.close();
+  }
+  else
+  {
+    Serial.println("error opening datalog.csv");
+  }
+  logString = "";
+}
 
 void motor(int m, int sp)
 {
@@ -142,9 +215,9 @@ void thread_head1(int data)
         {
           //Serial.println("PROX");
           motor(1, 255);
-          float C ;
+          float C;
           if ((millis() - time_1) > 200)
-          { 
+          {
             float I = sensor.getCurrentDC();
             C = current_motor1.input(I);
           }
@@ -156,11 +229,11 @@ void thread_head1(int data)
             //Serial.println("overtime");
             break;
           }
-          else if(C<-0.87)   //edit current
+          else if (C < -0.87)
           {
             Serial.println("Over current Head1");
             flag_ng1 = true; //defect
-            C=0;
+            C = 0;
             break;
           }
           else
@@ -410,12 +483,22 @@ void thread_slide(int data)
 
 void setup()
 {
+  setupRTC();
   Wire.setClock(100000);
   analogWriteFrequency(9, 10000);
   analogWriteFrequency(10, 10000);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   Serial.begin(115200);
+
+  Serial.print("Initializing SD card...");
+  if (!SD.begin(chipSelect))
+  {
+    Serial.println("Card failed, or not present");
+    return;
+  }
+  Serial.println("card initialized.");
+
   for (int i = 0; i < 4; i++)
   {
     pinMode(PROX[i], INPUT);
@@ -456,13 +539,10 @@ void setup()
   Serial.println("Calibrating... Ensure that no current flows through the sensor at this moment");
   int zero = sensor.calibrate();
   Serial.println("Done!");
-  Serial.println("Zero point for this sensor = " + zero);
+  //Serial.println("Zero point for this sensor = " + zero);
 }
-int c;
-int total;
 void loop()
 {
-
   total = count_go + count_ng1 + count_ng2;
   lcd.setCursor(6, 0);
   lcd.print(count_go);
@@ -482,10 +562,17 @@ void loop()
   }
   else if (!digitalRead(SW_RED))
   {
+    //while(!digitalRead(SW_RED));
     Serial.println("R ON");
     flag_swGreen = false;
+    //getDataLog();
   }
-  Serial.println(current_motor1.output());
+  // if(flag_last == true&&flag_head1==true&&flag_head2==true)
+  // {
+  //   getDataLog();
+  // }
+  //readRTC();
+  //Serial.println(current_motor1.output());
   //motor(1,250);
   // float I = sensor.getCurrentDC();
   // current_motor1.input(I);
@@ -496,85 +583,3 @@ void loop()
   //Serial.println(c++);
 }
 
-
-
-
-void setupRTC() {
-  Wire.begin();
-  RTC.begin();
-    
-  RTC.adjust(DateTime(__DATE__, __TIME__));
-  if (!RTC.isrunning()) {
-    Serial.println("RTC is NOT running!");
-    // following line sets the RTC to the date & time this sketch was compiled
-    RTC.adjust(DateTime(__DATE__, __TIME__));
-  }
-  DateTime now = RTC.now();
-  //RTC.setAlarm1Simple(21, 58);
-  //RTC.turnOnAlarm(1);
-  //if (RTC.checkAlarmEnabled(1)) {
-  //  Serial.println("Alarm Enabled");
-  //}
-}
-
-void readRTC () {
-    DateTime now = RTC.now();
-    
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(' ');
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println();
-
-    //if (RTC.checkIfAlarm(1)) {
-    //  Serial.println("Alarm Triggered");
-    //}
-}
-// void getNameSD()
-// {
-//   DateTime now = RTC.now();
-//   dir_name = "/" + String(now.month()) + String(now.year());
-//   file_name = String(dir_name) + "/" + String(now.hour()) + String(now.minute()) + String(now.day()) + String(".CSV");
-//   SD.mkdir(dir_name.c_str());
-// }
-// void getDataLog()
-// {
-  
-//     File dataFile = SD.open(file_name.c_str(), FILE_WRITE);
-//     if (dataFile)
-//     { 
-//       //Serial.println("SAVE");
-//       dataFile.print(logString);
-//       dataFile.close();
-//     }
-//     else
-//     {
-//       Serial.println("error opening datalog.csv");
-//     }
-//     logString = "";
-//     start = 0;
-//   }
-//   else
-//   {
-//     readSensor();  
-//     //String times = String(now());
-//     //dataString += times;
-//     //logString += ",";
-//     for (int sen = 0; sen < 4; sen++)
-//     {
-//       logString += String(current[sen]);
-//       logString += ",";
-//     }
-//     logString += "\r\n";
-//     //Serial.print(logString);
-//     delay(1);
-//   }
-//   //Serial.println(start);
-// }
