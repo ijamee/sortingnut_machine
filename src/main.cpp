@@ -19,7 +19,7 @@ File dataFile;
 String logString;
 RTC_DS3231 RTC;
 
-float Frequency = 3.0; //Hz 2.5
+float Frequency = 5.0; //Hz 2.5  3
 FilterOnePole current_motor1(LOWPASS, Frequency);
 ACS712 sensor(ACS712_20A, 31);
 
@@ -83,6 +83,8 @@ long time_2;
 
 int c;
 int total;
+float sum_C;
+long sum_index;
 
 void setupRTC()
 {
@@ -220,6 +222,9 @@ void thread_head1(int data)
           {
             float I = sensor.getCurrentDC();
             C = current_motor1.input(I);
+            Serial.println(C); 
+            sum_C = sum_C + C;
+            sum_index++;
           }
 
           if ((millis() - time_1) > 1500)
@@ -229,18 +234,21 @@ void thread_head1(int data)
             //Serial.println("overtime");
             break;
           }
-          else if (C < -0.87)
-          {
-            Serial.println("Over current Head1");
-            flag_ng1 = true; //defect
-            C = 0;
-            break;
-          }
           else
           {
             flag_ng1 = false;
           }
         }
+        float avg_C = sum_C/sum_index;
+        Serial.print("avg = ");
+        Serial.println(avg_C);
+        if (avg_C < -0.87)   //current cutoff
+        {
+            Serial.println("Over current Head1");
+            flag_ng1 = true; //defect
+        }
+        sum_index= 0.0f;
+        sum_C =0.0f;
 
         motor(1, 0);
         while (digitalRead(PROX_HEAD1) == HIGH)
