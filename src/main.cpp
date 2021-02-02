@@ -14,6 +14,7 @@ String file_name;
 String dir_name;
 String header;
 String year_name = "", month_name = "", day_name = "", hour_name = "", min_name = "", sec_name = "";
+String startTime;
 File dataFile;
 String logString;
 RTC_DS3231 RTC;
@@ -129,20 +130,19 @@ void readRTC()
 void getDataLog()
 { 
   DateTime now = RTC.now();
-  dir_name = "/" + String(now.month()) + String(now.year());
-  file_name = String(dir_name) + "/" + String(now.day()) + String(now.hour()) + String(now.minute()) + String(now.second()) + String(".CSV");
+  dir_name = "/" + String(now.day())+String(now.month()) + String(now.year());
+  file_name = String(dir_name) + "/" + String(now.hour()) + String(now.minute()) + String(now.second()) + String(".CSV");
   SD.mkdir(dir_name.c_str());
   
   File dataFile = SD.open(file_name.c_str(), FILE_WRITE);
-  
   Serial.println(file_name);
   if (dataFile)
   {
     //Serial.println("SAVE");
-    logString = String("count_go")+","+String("count_ng1")+","+String("count_ng2")+","+String("total")+","+"\r\n";
+    logString = String("count_go")+","+String("count_ng1")+","+String("count_ng2")+","+String("total")+","+String("start time")+","+String("finish time")+","+"\r\n";
     dataFile.print(logString);
     logString="";
-    logString = String(count_go)+","+String(count_ng1)+","+String(count_ng2)+","+String(total)+","+"\r\n";
+    logString = String(count_go)+","+String(count_ng1)+","+String(count_ng2)+","+String(total)+","+String(startTime)+","+String(now.year())+String("/")+String(now.month())+String("/")+String(now.day())+String("/")+String(now.hour())+String(":")+String(now.minute())+String(":")+String(now.second())+","+ "\r\n";
     dataFile.print(logString);
     dataFile.close();
   }
@@ -461,7 +461,11 @@ void thread_slide(int data)
           {
             if (digitalRead(PROX_SLIDE1) == LOW && digitalRead(PROX_SLIDE2) == HIGH)
             {
-              flag_last = true;
+              //flag_last = true;
+               if(flag_last == true)
+                {
+                  getDataLog();
+                }
               break;
             }
             else if (digitalRead(PROX_SLIDE1) == HIGH && digitalRead(PROX_SLIDE2) == HIGH)
@@ -543,6 +547,8 @@ void setup()
 }
 void loop()
 {
+
+
   total = count_go + count_ng1 + count_ng2;
   lcd.setCursor(6, 0);
   lcd.print(count_go);
@@ -553,19 +559,54 @@ void loop()
   lcd.setCursor(6, 3);
   lcd.print(total);
 
+ 
   if (!digitalRead(SW_GREEN))
   {
+    while(!digitalRead(SW_GREEN));
     Serial.println("G ON");
+    DateTime now = RTC.now();\
+    startTime = String(now.year())+String("/")+String(now.month())+String("/")+String(now.day())+String("/")+String(now.hour())+String(":")+String(now.minute())+String(":")+String(now.second());
     flag_swGreen = true;
     flag_last = false;
     flag_first = false;
   }
   else if (!digitalRead(SW_RED))
   {
-    //while(!digitalRead(SW_RED));
-    Serial.println("R ON");
-    flag_swGreen = false;
-    //getDataLog();
+   while(!digitalRead(SW_RED));
+   lcd.clear();
+   delay(100);
+   total=0;   
+   count_go=0; 
+   count_ng1=0;
+   count_ng2=0;
+  
+   lcd.setCursor(0, 0);
+   lcd.print("Go");
+   lcd.setCursor(0, 1);
+   lcd.print("NG1");
+   lcd.setCursor(0, 2);
+   lcd.print("NG2");
+   lcd.setCursor(0, 3);
+   lcd.print("Total ");
+
+   flag_first = false;
+   flag_ng1 = false;
+   flag_ng2 = false;
+   flag_last = false;
+   flag_head1 = false;
+   flag_head2 = false;
+   flag_swGreen = false;
+   flag_select = false;
+   flag_sd = false;
+   flag_save = false;
+   for (int i = 0; i < 6; i++)
+   {
+     digitalWrite(SOLENOID[i], HIGH);
+   }
+   Serial.println("R ON");
+   flag_swGreen = false;
+   
+    // getDataLog();
   }
   // if(flag_last == true&&flag_head1==true&&flag_head2==true)
   // {
@@ -578,7 +619,7 @@ void loop()
   // current_motor1.input(I);
   // Serial.println(current_motor1.output());
   // Send it to serial
-  delay(20);
+  delay(100);
 
   //Serial.println(c++);
 }
