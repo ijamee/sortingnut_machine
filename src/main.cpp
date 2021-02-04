@@ -93,7 +93,7 @@ void setupRTC()
   Wire1.begin();
   RTC.begin();
 
-  RTC.adjust(DateTime(__DATE__, __TIME__));
+  //RTC.adjust(DateTime(__DATE__, __TIME__));
   if (!RTC.isrunning())
   {
     Serial.println("RTC is NOT running!");
@@ -107,7 +107,15 @@ void setupRTC()
   //  Serial.println("Alarm Enabled");
   //}
 }
+void dateTime(uint16_t* date, uint16_t* time) {
+  DateTime now = RTC.now();
 
+  // return date using FAT_DATE macro to format fields
+  *date = FAT_DATE(now.year(), now.month(), now.day());
+
+  // return time using FAT_TIME macro to format fields
+  *time = FAT_TIME(now.hour(), now.minute(), now.second());
+}
 void readRTC()
 {
   DateTime now = RTC.now();
@@ -136,7 +144,9 @@ void getDataLog()
   file_name = String(dir_name) + "/" + String(now.hour()) + String(now.minute()) + String(now.second()) + String(".CSV");
   SD.mkdir(dir_name.c_str());
   
+  SdFile::dateTimeCallback(dateTime);
   File dataFile = SD.open(file_name.c_str(), FILE_WRITE);
+  
   Serial.println(file_name);
   if (dataFile)
   {
