@@ -94,12 +94,12 @@ void setupRTC()
   RTC.begin();
 
   //RTC.adjust(DateTime(__DATE__, __TIME__));
-  if (!RTC.isrunning())
-  {
-    Serial.println("RTC is NOT running!");
+  //if (!RTC.isrunning())
+ // {
+    //Serial.println("RTC is NOT running!");
     // following line sets the RTC to the date & time this sketch was compiled
-    RTC.adjust(DateTime(__DATE__, __TIME__));
-  }
+    //RTC.adjust(DateTime(__DATE__, __TIME__));
+  //}
   //DateTime now = RTC.now();
   //RTC.setAlarm1Simple(21, 58);
   //RTC.turnOnAlarm(1);
@@ -140,8 +140,8 @@ void readRTC()
 void getDataLog()
 { 
   DateTime now = RTC.now();
-  dir_name = "/" + String(now.day())+String(now.month()) + String(now.year());
-  file_name = String(dir_name) + "/" + String(now.hour()) + String(now.minute()) + String(now.second()) + String(".CSV");
+  dir_name = "/" + String(now.day()) +String(now.month()) + String(now.year());
+  file_name = String(dir_name) + "/" + String(now.hour())+ "_"  + String(now.minute())+ "_"  + String(now.second()) + String(".CSV");
   SD.mkdir(dir_name.c_str());
   
   SdFile::dateTimeCallback(dateTime);
@@ -249,10 +249,15 @@ void thread_head1(int data)
             flag_ng1 = false;
           }
         }
+        if(digitalRead(PROX_HEAD1) == HIGH)  //add
+        {
+          flag_ng1 = true;
+        }
+
         float avg_C = sum_C/sum_index;
         Serial.print("avg = ");
         Serial.println(avg_C);
-        if (avg_C < -0.87)   //current cutoff
+        if (avg_C < -1.2)   //current cutoff
         {
             Serial.println("Over current Head1");
             flag_ng1 = true; //defect
@@ -474,7 +479,7 @@ void thread_slide(int data)
           // }
 
           digitalWrite(SOLENOID_SLIDE1, LOW);
-          delay(400);
+          delay(650);
           while (true)
           {
             if (digitalRead(PROX_SLIDE1) == LOW && digitalRead(PROX_SLIDE2) == HIGH)
@@ -493,7 +498,7 @@ void thread_slide(int data)
             delay(50);
           }
           digitalWrite(SOLENOID_SLIDE1, HIGH);
-          delay(400);
+          delay(650);
           flag_head1 = false;
           flag_head2 = false;
         }
